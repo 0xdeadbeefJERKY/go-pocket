@@ -27,6 +27,10 @@ var defaultItemTemplate = template.Must(template.New("item").Parse(
 	`[{{.ItemID | printf "%9d"}}] {{.Title}} <{{.URL}}>`,
 ))
 
+var completeItemTemplate = template.Must(template.New("item").Parse(
+	`[{{.ItemID | printf "%9d"}}] {{.Title}} <{{.URL}}> {{.Tags}}`,
+))
+
 var configDir string
 
 func init() {
@@ -46,7 +50,7 @@ func main() {
 	usage := `A Pocket <getpocket.com> client.
 
 Usage:
-  pocket list [--format=<template>] [--domain=<domain>] [--tag=<tag>] [--search=<query>]
+  pocket list [--format=<template>] [--domain=<domain>] [--tag=<tag>] [--search=<query>] [--details=<simple,complete>] [--sort=<newest,oldest,site,title>] [--all]
   pocket archive <item-id>
   pocket add <url> [--title=<title>] [--tags=<tags>]
 
@@ -55,6 +59,9 @@ Options for list:
   -d, --domain <domain>   Filter items by its domain when listing.
   -s, --search <query>    Search query when listing.
   -t, --tag <tag>         Filter items by a tag when listing.
+  -s, --sort <newest,oldest,title,site>         Sort items by date added, title or site.
+  -c, --details <simple,complete>         Return basic (simple) or complete information about each item.
+  -a, --all				  Return all items.
 
 Options for add:
   --title <title>         A manually specified title for the article
@@ -107,6 +114,20 @@ func commandList(arguments map[string]interface{}, client *api.Client) {
 		options.Tag = tag
 	}
 
+	if details, ok := arguments["--details"].(string); ok {
+		options.DetailType = api.DetailType(details)
+	}
+
+	if sort, ok := arguments["--sort"].(string); ok {
+		options.Sort = api.Sort(sort)
+	}
+
+	if arguments["--all"].(bool) {
+		options.State = api.StateAll
+	} else {
+		options.State = api.StateUnread
+	}
+
 	res, err := client.Retrieve(options)
 	if err != nil {
 		panic(err)
@@ -115,6 +136,8 @@ func commandList(arguments map[string]interface{}, client *api.Client) {
 	var itemTemplate *template.Template
 	if format, ok := arguments["--format"].(string); ok {
 		itemTemplate = template.Must(template.New("item").Parse(format))
+	} else if options.DetailType == "complete" {
+		itemTemplate = completeItemTemplate
 	} else {
 		itemTemplate = defaultItemTemplate
 	}
